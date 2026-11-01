@@ -4,6 +4,7 @@ const { verifyProxy } = require("./src/middleware/verifyProxy");
 const wishlistRouter = require("./src/routes/wishlist");
 const { router: alertsRouter } = require("./src/routes/alerts");
 const { router: webhooksRouter } = require("./src/routes/webhooks");
+const adminRouter = require("./src/routes/admin");
 
 const app = express();
 app.disable("x-powered-by");
@@ -26,6 +27,9 @@ proxy.use(verifyProxy);
 proxy.use(wishlistRouter); // /items, /add, /remove, /merge
 proxy.use(alertsRouter);   // /notify, /unsubscribe
 app.use("/proxy", proxy);
+
+// Debug aur manual trigger (sirf CRON_SECRET set ho tab chalta hai)
+app.use("/admin", adminRouter);
 
 app.use((req, res) => res.status(404).json({ ok: false, error: "not_found" }));
 

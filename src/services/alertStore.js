@@ -34,6 +34,18 @@ async function countPendingForEmail(shop, email) {
   return count || 0;
 }
 
+// Jin products ke alerts pending hain unki list (admin/process route ke liye)
+async function pendingProducts() {
+  const { data, error } = await getSupabase()
+    .from(TABLE)
+    .select("shop, product_id")
+    .is("notified_at", null);
+  if (error) throw error;
+  const seen = new Map();
+  for (const r of data) seen.set(`${r.shop}|${r.product_id}`, { shop: r.shop, productId: r.product_id });
+  return [...seen.values()];
+}
+
 // Is product ke saare pending alerts
 async function pendingForProduct(shop, productId) {
   const { data, error } = await getSupabase()
@@ -110,6 +122,7 @@ module.exports = {
   createAlert,
   countPendingForEmail,
   pendingForProduct,
+  pendingProducts,
   claim,
   release,
   deleteWishlistAlert,

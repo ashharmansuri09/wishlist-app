@@ -16,14 +16,20 @@ function verifyWebhookHmac(rawBody, headerValue, secret) {
 
 router.post("/shopify", express.raw({ type: "*/*", limit: "1mb" }), async (req, res) => {
   const rawBody = req.body;
-  if (!Buffer.isBuffer(rawBody)) return res.status(400).send("bad body");
+  if (!Buffer.isBuffer(rawBody)) {
+    // Hosting ne body pehle hi parse kar di to signature check nahi ho sakta
+    console.warn("webhook rejected: body raw Buffer nahi hai, type =", typeof rawBody);
+    return res.status(400).send("bad body");
+  }
 
   if (!verifyWebhookHmac(rawBody, req.get("X-Shopify-Hmac-Sha256"), process.env.SHOPIFY_API_SECRET)) {
+    console.warn("webhook rejected: HMAC match nahi hua (SHOPIFY_API_SECRET galat ya body badal gayi). topic =", req.get("X-Shopify-Topic"));
     return res.status(401).send("invalid hmac");
   }
 
   const topic = req.get("X-Shopify-Topic") || "";
   const shop = (req.get("X-Shopify-Shop-Domain") || "").toLowerCase();
+  console.log("webhook received:", topic, shop);
   if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(shop)) return res.status(400).send("bad shop");
 
   let payload;
