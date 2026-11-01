@@ -57,6 +57,18 @@ async function recent(limit = 10) {
   return data;
 }
 
+// Is customer ke kin products par abhi alert pending hai (wishlist page par "Notify me" button dikhana hai ya nahi)
+async function pendingProductIdsForCustomer(shop, customerId) {
+  const { data, error } = await getSupabase()
+    .from(TABLE)
+    .select("product_id")
+    .eq("shop", shop)
+    .eq("customer_id", customerId)
+    .is("notified_at", null);
+  if (error) throw error;
+  return new Set(data.map((r) => r.product_id));
+}
+
 // Is product ke saare pending alerts
 async function pendingForProduct(shop, productId) {
   const { data, error } = await getSupabase()
@@ -134,6 +146,7 @@ module.exports = {
   countPendingForEmail,
   pendingForProduct,
   pendingProducts,
+  pendingProductIdsForCustomer,
   recent,
   claim,
   release,
