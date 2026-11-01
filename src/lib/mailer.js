@@ -62,4 +62,30 @@ async function sendMail(message) {
   throw new Error(`Unknown MAIL_PROVIDER: ${provider}`);
 }
 
-module.exports = { sendMail, parseFrom };
+// Debug ke liye: Brevo batata hai ki is email par mail ka kya hua (delivered, blocked, bounce, deferred...)
+// Sirf Brevo me kaam karta hai. API key me "Transactional email" permission chahiye.
+async function getMailEvents(email) {
+  if ((process.env.MAIL_PROVIDER || "brevo").toLowerCase() !== "brevo") {
+    throw new Error("mail events sirf Brevo ke liye hain");
+  }
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) throw new Error("BREVO_API_KEY set nahi hai");
+
+  const url = new URL("https://api.brevo.com/v3/smtp/statistics/events");
+  url.searchParams.set("email", email);
+  url.searchParams.set("days", "7");
+  url.searchParams.set("limit", "20");
+  url.searchParams.set("sort", "desc");
+
+  const res = await fetch(url, { headers: { "api-key": apiKey, Accept: "application/json" } });
+  await failIfBad(res, "brevo_events_failed");
+  const data = await res.json();
+  return (data.events || []).map((e) => ({
+    event: e.event,        // requests = Brevo ne le li, delivered = inbox tak pahunchi, blocked/bounces/deferred = problem
+    date: e.date,
+    subject: e.subject,
+    reason: e.reason,      // fail hone ki wajah (jab ho)
+  }));
+}
+
+module.exports = { sendMail, parseFrom, getMailEvents };

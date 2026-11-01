@@ -2,6 +2,7 @@
 //
 //   /admin/diagnose?key=SECRET                    -> env, database, Shopify Admin API aur scopes ka check
 //   /admin/diagnose?key=SECRET&testMail=a@b.com   -> Brevo se ek test mail bhi
+//   /admin/diagnose?key=SECRET&mailEvents=a@b.com -> Brevo batayega ki is email par mail ka kya hua (delivered/blocked...)
 //   /admin/process?key=SECRET                     -> pending alerts ko abhi check karo (webhook ka intezaar kiye bina)
 //
 // Ye routes tabhi chalte hain jab Vercel me CRON_SECRET set ho. Kaam khatam hone par CRON_SECRET hata do, routes band ho jaate hain.
@@ -9,8 +10,8 @@ const express = require("express");
 const crypto = require("crypto");
 const alertStore = require("../services/alertStore");
 const { processProduct } = require("../services/restockService");
-const { adminGraphql, API_VERSION } = require("../lib/shopifyAdmin");
-const { sendMail } = require("../lib/mailer");
+const { adminGraphql, clearToken, API_VERSION } = require("../lib/shopifyAdmin");
+const { sendMail, getMailEvents } = require("../lib/mailer");
 const { cleanEmail } = require("./alerts");
 
 const router = express.Router();
@@ -51,6 +52,8 @@ router.get("/diagnose", async (req, res) => {
   try {
     pending = await alertStore.pendingProducts();
     out.database = { ok: true, pendingProducts: pending };
+    // Sabse naye 10 alerts: kaunsa source, kaunsa email, mail gayi (notified_at) ya fail hui (last_error)
+    out.recentAlerts = await alertStore.recent(10);
   } catch (err) {
     out.database = { ok: false, error: err.message };
   }
@@ -61,6 +64,7 @@ router.get("/diagnose", async (req, res) => {
     out.shopifyAdmin = { ok: false, error: "shop nahi mila. ?shop=your-store.myshopify.com jodo" };
   } else {
     try {
+      clearToken(shop); // diagnose hamesha fresh token se chalta hai
       const data = await adminGraphql(shop, DIAG_QUERY);
       const scopes = data.currentAppInstallation.accessScopes.map((s) => s.handle);
       out.shopifyAdmin = {
@@ -92,6 +96,20 @@ router.get("/diagnose", async (req, res) => {
         out.mail = { ok: true, sentTo: to };
       } catch (err) {
         out.mail = { ok: false, error: err.message };
+      }
+    }
+  }
+
+  // 4) Optional: Brevo me is email ka delivery status
+  if (req.query.mailEvents) {
+    const who = cleanEmail(req.query.mailEvents);
+    if (!who) {
+      out.mailEvents = { ok: false, error: "mailEvents ka email galat hai" };
+    } else {
+      try {
+        out.mailEvents = { ok: true, email: who, events: await getMailEvents(who) };
+      } catch (err) {
+        out.mailEvents = { ok: false, error: err.message };
       }
     }
   }

@@ -46,6 +46,17 @@ async function pendingProducts() {
   return [...seen.values()];
 }
 
+// Debug ke liye: sabse naye alerts (kis email, kaunsa source, mail gayi ya nahi)
+async function recent(limit = 10) {
+  const { data, error } = await getSupabase()
+    .from(TABLE)
+    .select("id, source, email, customer_id, product_id, variant_id, created_at, notified_at, last_error")
+    .order("id", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data;
+}
+
 // Is product ke saare pending alerts
 async function pendingForProduct(shop, productId) {
   const { data, error } = await getSupabase()
@@ -123,6 +134,7 @@ module.exports = {
   countPendingForEmail,
   pendingForProduct,
   pendingProducts,
+  recent,
   claim,
   release,
   deleteWishlistAlert,
